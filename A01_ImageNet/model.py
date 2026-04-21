@@ -23,13 +23,14 @@ class cats_net(nn.Module):
     ):
         super().__init__()
         self.fix_fe = fix_fe
-        self.fe = torchvision.models.__dict__[fe_type](weights=None)
+        self.fe = torchvision.models.__dict__[fe_type](weights=None)   # 特征提取
         self.fe_type = fe_type
         self.mlp_layers = mlp_layers
         self.hidden_dim = hidden_dim
+        # fe特征提取，根据fe_type加载ResNet或ViT
         if fe_type == 'resnet18': 
             dim = 512
-            if pretrain: 
+            if pretrain: # 决定是否加载预训练权重
                 self.fe.load_state_dict(
                     torch.load(
                         os.path.join(project_root, "Deps", "pretrained_fe", "resnet18-f37072fd.pth")
@@ -208,6 +209,7 @@ class cats_net(nn.Module):
 
     def _process_ca_ts_layers(self, x, symbol):
         """Process input through ca and ts layers with dynamic layer count"""
+        # 输入x， 符号symbol
         for i in range(1, self.mlp_layers + 1):
             # Process ca layer
             ca_fc = getattr(self, f'ca_fc{i}')
@@ -253,6 +255,8 @@ class cats_net(nn.Module):
         return loss
 
 class ts_net(nn.Module):
+    # 使用计算机视觉模型进行特征提取，再接入多层感知机输出2个值（二分类模型）
+    # 如果使用预训练权重，类似于迁移学习
     def __init__(
         self, 
         mlp_layers = 3,
@@ -293,7 +297,8 @@ class ts_net(nn.Module):
                 )
         else:
             raise ValueError("No valid feature extractor!")
-        
+
+        # 设置ts模块所用的多层感知机
         for i in range(1, mlp_layers + 1):
             if i == 1 and mlp_layers == 1:
                 # Single layer case: from feature dimension directly to output dimension
@@ -305,7 +310,7 @@ class ts_net(nn.Module):
                 setattr(self, f'ts_bn{i}', nn.BatchNorm1d(hidden_dim))
             elif i == mlp_layers:
                 # Last layer in multi-layer case: from hidden dimension to output dimension
-                setattr(self, f'ts_fc{i}', nn.Linear(hidden_dim, 2, bias=False))
+                setattr(self, f'ts_fc{i}', nn.Linear(hidden_dim, 2, bias=False))  # 针对二分类问题
                 # Last layer does not need BatchNorm
             else:
                 # Middle layers: hidden dimension to hidden dimension
@@ -353,6 +358,7 @@ class ts_net(nn.Module):
         return self._process_ts_layers(x)
 
     def feature_forward(self, x):
+        # 如果输入的x是网络已提取好的特征，直接用ts层
         return self._process_ts_layers(x)
 
     def _process_ts_layers(self, x):
