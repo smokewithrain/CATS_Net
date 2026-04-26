@@ -149,7 +149,7 @@ def get_logger(filename, verbosity=1, name=None):
     return logger
 
 if __name__ == '__main__':
-    
+
     prt_time()
     
     args = argument.parser()

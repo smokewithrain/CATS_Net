@@ -93,10 +93,12 @@ def get_batch_fast(y, symbol_set, negative = False, p = 0.5):
     num_symbols = symbol_set.shape[0] # 10
 
     y_binary = torch.zeros(batch_size, 2).to(device)
-    if negative:    
+    if negative:    # 负采样
+        # 该批次前一半是正例， 图片+对应的符号
+        # 后一半是负例，图片+错误的符号
         y_binary[:int(batch_size*(1-p)), 1] = 1.0
         y_binary[int(batch_size*(1-p)):, 0] = 1.0
-        y_diff = (y + torch.randint(1, num_symbols, (batch_size,)).to(device)) % num_symbols
+        y_diff = (y + torch.randint(1, num_symbols, (batch_size,)).to(device)) % num_symbols  # 偏移
         all_indices = torch.cat([y[:int(batch_size*(1-p))], y_diff[int(batch_size*(1-p)):]])
         symbol_batch = symbol_set[all_indices]
     else:
@@ -105,6 +107,7 @@ def get_batch_fast(y, symbol_set, negative = False, p = 0.5):
     return y_binary, symbol_batch
 
 def evaluate_accuracy(eval_set, net: cats_net, batch_size = 128, stat = False, use_feature = False, use_iter = False):
+    # 关于图和符号是否匹配的二分类任务
     device = list(net.parameters())[0].device
     num_symbols = net.symbol_set.shape[0] # 10
     if use_iter == True:
@@ -171,14 +174,13 @@ def evaluate_accuracy_noy(eval_set, net, batch_size = 1, stat = False):
     else: return test_acc_sum / n, statlist
 
 
-def train(
-    net, 
-    loss, 
-    train_set, 
-    test_set, 
-    param_opti, 
-    symbol_opti, 
-    device, 
+def train(net,
+    loss,
+    train_set,
+    test_set,
+    param_opti,
+    symbol_opti,
+    device,
     args, 
     logger = None, 
     ckpt = None,
@@ -251,6 +253,7 @@ def train(
                     logger.info(f'total time {(time.time() - start):.3f}sec, IO {cpu_gpu_time:.3f}sec, make batch {make_batch_time:.3f}sec, forward {forward_time:.3f}sec, backward {backward_time:.3f}sec, grad step {grad_step_time:.3f}sec, others stat {other_stat_tims:.3f}sec, eval {eval_time:.3f}sec')
         
         # Original two-stage training mode
+        # 不固定ts, ca (即第一阶段，训练ca和ts模块）
         elif not args.fix_ts_ca:
             train_l_sum, train_acc_sum, n, batch_count, start = 0.0, 0.0, 0, 0, time.time()
             cpu_gpu_time = 0.0
@@ -263,16 +266,17 @@ def train(
                 time1 = time.time()
                 X_ = tmp[0] 
                 y = tmp[1]
-                net.train()
-                X = X_.to(device)
-                y = y.to(device)
+                net.train()             # 切换到训练模式
+                X = X_.to(device)       # 图片  (batch_size, 3, 32, 32)
+                y = y.to(device)        # 类别 (batch_size)
                 
                 time2 = time.time()
+                # y_binary (batch_size, 2)  [0,1]正样本，图片和符号相符；[1,0]负样本，图片和符号不相符
                 y_binary, symbol_batch = get_batch_fast(y, net.symbol_set, negative = True, p = args.p)
 
                 time3 = time.time()
-                y_hat = net(X, symbol_batch)
-                l = loss(y_hat, y_binary)
+                y_hat = net(X, symbol_batch)  # 输出对图片与符号是否相符的预测
+                l = loss(y_hat, y_binary)     # 交叉熵损失
                 if args.use_orthg: l += net.symbol_orthg()
                 
                 time4 = time.time()
@@ -281,7 +285,7 @@ def train(
                 l.backward()
                 
                 time5 = time.time()
-                param_opti.step()
+                param_opti.step()            # 只更新网络权重
 
                 time6 = time.time()
                 train_l_sum += l.cpu().item()
@@ -314,6 +318,8 @@ def train(
                     logger.info(f'total time {(time.time() - start):.3f}sec, IO {cpu_gpu_time:.3f}sec, make batch {make_batch_time:.3f}sec, forward {forward_time:.3f}sec, backward {backward_time:.3f}sec, grad step {grad_step_time:.3f}sec, others stat {other_stat_tims:.3f}sec, eval {eval_time:.3f}sec')
         
         # Skip second iteration if symbol_set is fixed or in joint training mode, but continue to checkpoint saving
+        # 不固定符号集 且 不联合训练
+        # 第二阶段，更新概念向量
         if not args.fix_symbol_set and not args.joint_training:
             train_l_sum, train_acc_sum, n, batch_count, start = 0.0, 0.0, 0, 0, time.time()
             cpu_gpu_time = 0.0
@@ -345,7 +351,7 @@ def train(
                 l.backward()
                 
                 time5 = time.time()
-                symbol_opti.step()
+                symbol_opti.step()        # 只更新符号集
 
                 time6 = time.time()
                 train_l_sum += l.cpu().item()

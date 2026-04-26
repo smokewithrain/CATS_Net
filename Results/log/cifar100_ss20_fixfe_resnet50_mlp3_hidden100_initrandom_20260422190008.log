@@ -1,0 +1,2 @@
+[2026-04-22 19:14:21,024][utils.py][line:316][INFO] epoch 1, network phase, loss 6.9963, train acc 0.8222, test acc given symbol 0.9131
+[2026-04-22 19:14:22,119][utils.py][line:317][INFO] total time 849.564sec, IO 21.120sec, make batch 1.512sec, forward 458.246sec, backward 2.973sec, grad step 1.169sec, others stat 7.766sec, eval 304.313sec

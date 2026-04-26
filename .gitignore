@@ -5,6 +5,7 @@ Deps/pretrained_fe/vit_b_16-c867db91.pth
 
 Results/param/*
 
+data
 
 **/datafile/
 **/__pycache__/

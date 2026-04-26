@@ -242,14 +242,16 @@ class cats_net(nn.Module):
         return Y_pred[1]
 
     def symbol_orthg(self):
+        """符号正交损失"""
         device = self.symbol_set.device
-        S_e = F.normalize(self.symbol_set, p = 2, dim = 1)
+        S_e = F.normalize(self.symbol_set, p = 2, dim = 1)  # L2归一化，只关注向量的方向，忽略其大小
         logits = torch.mm(S_e, S_e.T) * torch.exp(self.t)
         
-        logits = logits.to(device)
+        logits = logits.to(device)   # (1000, 1000)
         labels = torch.arange(self.symbol_set.shape[0]).to(device)
 
         loss_f = nn.CrossEntropyLoss()
+        # 一个符号和其他符号越不同越好
         loss = loss_f(logits, labels)
 
         return loss
